@@ -6,10 +6,30 @@ Note that Dockerfile.cuda was built from the cuda official containers therefore 
 
 ## Usage of the Docker images
 
+Create two directories, one for the whisper samples and another to place the generated model.
+Remember to play all the wav files and confirm the transcription at the '.prop' file matches the audio.
+Then run the docker image mounting the folders in the container `-v absolute/path/to/samples:/oh_whisper_records -v absolute/path/to/output:/output`.
+
+The interesting environment variables to customize the training are:
+
+``` bash
+PARAM_MODEL_NAME=openai/whisper-tiny # HuggingFace base model to train from.
+PARAM_LANGUAGE=English               # Dataset language.
+PARAM_TRAIN_STRATEGY=epoch           # Train strategy epoch|steps
+PARAM_EPOCHS=20                      # Train epochs for epoch train strategy
+PARAM_NUM_STEPS=10000                # Training steps for steps train strategy
+PARAM_LEARNING_RATE=3e-5             # Training learning rate, recommended values at the bottom in the original README content.
+PARAM_NUM_PROC=2                     # Number of parallel processors.
+PARAM_WARNUP=1000                    # Warm up steps.
+PARAM_TRAIN_BATCHSIZE=16             # Batch size per GPU/TPU/MPS/NPU core/CPU for training.
+PARAM_EVAL_BATCHSIZE=8               # Batch size per GPU/TPU/MPS/NPU core/CPU for evaluation.
+PARAM_RESUME_CHECKPOINT=None         # Checkpoint to resume from, mount '/finetune_root/op_dir_epoch' to use this.
+```
+
 ### CPU training
 
 ```bash
-docker run -e PARAM_EPOCHS=20 -e PARAM_MODEL_NAME="openai/whisper-tiny" -e PARAM_LANGUAGE="Spanish" -v $(pwd)/oh_whisper_records:/oh_whisper_records -v $(pwd)/output:/output -it --rm givi/whisper-finetune-oh:cpu
+docker run -e PARAM_EPOCHS=30 -e PARAM_MODEL_NAME="openai/whisper-tiny" -e PARAM_LANGUAGE="Italian" -e PARAM_LEARNING_RATE=3.75e-5 -v $(pwd)/oh_whisper_records:/oh_whisper_records -v $(pwd)/output:/output -it --rm givi/whisper-finetune-oh:cpu
 ```
 
 ### GPU training
@@ -17,8 +37,10 @@ docker run -e PARAM_EPOCHS=20 -e PARAM_MODEL_NAME="openai/whisper-tiny" -e PARAM
 You need to use linux with the nvidia driver + the [nvidia container toolkit](https://github.com/NVIDIA/nvidia-container-toolkit) installed.
 You can run `nvidia-smi` to check the supported CUDA version for your driver, it needs to be higher or equal to 11.3 to use the image.
 
+Following command was tested on an NVIDIA GeForce GTX 1060 6GB.
+
 ```bash
-docker run -e PARAM_EPOCHS=50 -e PARAM_MODEL="openai/whisper-base" -e PARAM_LANGUAGE="Spanish" -v $(pwd)/oh_whisper_records:/oh_whisper_records -v $(pwd)/output:/output -it --rm  --runtime=nvidia --gpus all givi/whisper-finetune-oh:cu113
+docker run -e PARAM_EPOCHS=15 -e PARAM_MODEL_NAME="openai/whisper-base" -e PARAM_LANGUAGE="Spanish" -e PARAM_TRAIN_BATCHSIZE=10 -e PARAM_LEARNING_RATE=2.5e-5 -v $(pwd)/oh_whisper_records:/oh_whisper_records -v $(pwd)/output:/output -it --rm  --runtime=nvidia --gpus all givi/whisper-finetune-oh:cu113
 ```
 
 ## Building the images yourself.
