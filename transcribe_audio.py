@@ -1,4 +1,6 @@
 import argparse
+import os
+from pathlib import Path
 from transformers import pipeline
 
 parser = argparse.ArgumentParser(description='Script to transcribe a custom audio file of any length using Whisper Models of various sizes.')

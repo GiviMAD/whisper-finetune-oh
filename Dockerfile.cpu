@@ -1,0 +1,50 @@
+FROM debian:bookworm
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+VOLUME /oh_whisper_records
+VOLUME /finetune_root/op_dir_epoch
+VOLUME /output
+# training config env vars
+ENV PARAM_MODEL_NAME=openai/whisper-tiny
+ENV PARAM_LANGUAGE=English
+ENV PARAM_TRAIN_STRATEGY=epoch
+ENV PARAM_EPOCHS=20
+ENV PARAM_NUM_STEPS=10000
+ENV PARAM_LEARNING_RATE=3e-5
+ENV PARAM_NUM_PROC=2
+ENV PARAM_WARNUP=1000
+ENV PARAM_TRAIN_BATCHSIZE=16
+ENV PARAM_EVAL_BATCHSIZE=8
+ENV PARAM_RESUME_CHECKPOINT=None
+# build env vars
+ENV CPU_ONLY=true
+ENV OH_WHISPER_CPP_VERSION=v1.5.1
+ENV PYENV_ROOT "/root/.pyenv"
+ENV PATH="/root/.pyenv/bin:$PATH"
+# install deps
+RUN apt update && apt install -y git ffmpeg build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev curl libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev libbz2-dev zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget libsqlite3-dev libreadline-dev libffi-dev curl libbz2-dev
+RUN mkdir -p /finetune_root && mkdir -p /finetune_root/whisper-finetune-oh
+WORKDIR /finetune_root
+# setup a python 3.8 virtual env with the required deps 
+ADD requirements_cpu.txt ./whisper-finetune-oh/
+RUN curl https://pyenv.run | bash && \
+    pyenv install 3.8 && \
+    eval "$(pyenv init -)" && \
+    pyenv shell 3.8 && \
+    python3 -m venv env_whisper-finetune && \
+    source env_whisper-finetune/bin/activate && \
+    python3 -m pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r ./whisper-finetune-oh/requirements_cpu.txt && \
+    deactivate
+# clone whisper.cpp and whisper
+RUN git clone https://github.com/ggerganov/whisper.cpp && \
+    cd whisper.cpp && \
+    git checkout $OH_WHISPER_CPP_VERSION && \
+    cd ../ && \
+    git clone https://github.com/openai/whisper
+ADD train ./whisper-finetune-oh/train
+ADD evaluate ./whisper-finetune-oh/evaluate
+ADD custom_data ./whisper-finetune-oh/custom_data
+ADD convert_oh_whisper_records.sh ./whisper-finetune-oh/
+ADD entrypoint.sh .
+ENTRYPOINT ["./entrypoint.sh"]

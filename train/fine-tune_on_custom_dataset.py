@@ -11,7 +11,7 @@ from transformers import WhisperFeatureExtractor, WhisperTokenizer, WhisperProce
 
 parser = argparse.ArgumentParser(description='Fine-tuning script for Whisper Models of various sizes.')
 parser.add_argument(
-    '--model_name', 
+    '--model_name',
     type=str, 
     required=False, 
     default='openai/whisper-small', 
@@ -116,6 +116,14 @@ parser.add_argument(
     required=True, 
     default=[], 
     help='List of datasets to be used for evaluation.'
+)
+
+parser.add_argument(
+    '--cpu_only', 
+    type=bool,
+    required=False, 
+    default=False, 
+    help='Run on CPU.'
 )
 
 args = parser.parse_args()
@@ -276,13 +284,16 @@ def compute_metrics(pred):
 
 if args.train_strategy == 'epoch':
     training_args = Seq2SeqTrainingArguments(
+        no_cuda=args.cpu_only,
+        optim="adafactor" if args.cpu_only else "adamw_bnb_8bit",
+        fp16=not args.cpu_only,
+        xpu_backend="gloo",
         output_dir=args.output_dir,
         per_device_train_batch_size=args.train_batchsize,
         gradient_accumulation_steps=1,
         learning_rate=args.learning_rate,
         warmup_steps=args.warmup,
         gradient_checkpointing=gradient_checkpointing,
-        fp16=True,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         num_train_epochs=args.num_epochs,
@@ -295,19 +306,21 @@ if args.train_strategy == 'epoch':
         load_best_model_at_end=True,
         metric_for_best_model="wer",
         greater_is_better=False,
-        optim="adamw_bnb_8bit",
         resume_from_checkpoint=args.resume_from_ckpt,
     )
 
 elif args.train_strategy == 'steps':
     training_args = Seq2SeqTrainingArguments(
+        no_cuda=args.cpu_only,
+        optim="adafactor" if args.cpu_only else "adamw_bnb_8bit",
+        fp16=not args.cpu_only,
+        xpu_backend="gloo",
         output_dir=args.output_dir,
         per_device_train_batch_size=args.train_batchsize,
         gradient_accumulation_steps=1,
         learning_rate=args.learning_rate,
         warmup_steps=args.warmup,
         gradient_checkpointing=gradient_checkpointing,
-        fp16=True,
         evaluation_strategy="steps",
         eval_steps=1000,
         save_strategy="steps",
@@ -322,7 +335,6 @@ elif args.train_strategy == 'steps':
         load_best_model_at_end=True,
         metric_for_best_model="wer",
         greater_is_better=False,
-        optim="adamw_bnb_8bit",
         resume_from_checkpoint=args.resume_from_ckpt,
     )
 
